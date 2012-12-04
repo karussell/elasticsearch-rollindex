@@ -51,10 +51,9 @@ public class RollAction extends BaseRestHandler {
     @Inject public RollAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
 
-        // Define REST endpoints to do a roll further and to change the create-index-settings!        
+        // Define REST endpoints to do a roll further
         controller.registerHandler(PUT, "/_rollindex", this);
         controller.registerHandler(POST, "/_rollindex", this);
-        logger.info("RollAction constructor [{}]", settings.toString());
     }
 
     @Override public void handleRequest(RestRequest request, RestChannel channel) {

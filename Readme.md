@@ -1,3 +1,7 @@
+# Overview
+
+![overview in ElasticSearch Head](https://raw.github.com/karussell/elasticsearch-rollindex/master/rollindex.png)
+
 # Install
 
 > mvn -DskipTests clean package
