@@ -45,7 +45,7 @@ public class RollAction extends BaseRestHandler {
 
     private String feedEnd = "feed";
     private String searchEnd = "search";
-    // helper index
+    // helper alias to fetch all indices which are available to roll
     private String rollEnd = "roll";
 
     @Inject public RollAction(Settings settings, Client client, RestController controller) {
@@ -60,8 +60,8 @@ public class RollAction extends BaseRestHandler {
         logger.info("RollAction.handleRequest [{}]", request.toString());
         try {
             XContentBuilder builder = restContentBuilder(request);
-            String indexName = request.param("indexPrefix", "");
-            if (indexName.isEmpty()) {
+            String indexPrefix = request.param("indexPrefix", "");
+            if (indexPrefix.isEmpty()) {
                 builder.startObject();
                 builder.field("error", "indexPrefix missing");
                 builder.endObject();
@@ -71,6 +71,14 @@ public class RollAction extends BaseRestHandler {
             int searchIndices = request.paramAsInt("searchIndices", 1);
             int rollIndices = request.paramAsInt("rollIndices", 1);
             boolean deleteAfterRoll = request.paramAsBoolean("deleteAfterRoll", false);
+            boolean closeAfterRoll = request.paramAsBoolean("closeAfterRoll", true);
+            if (deleteAfterRoll && closeAfterRoll) {
+                if (request.hasParam("closeAfterRoll"))
+                    throw new IllegalArgumentException("Cannot delete and close an index at the same time");
+                else
+                    // if no param was specified use false as default:
+                    closeAfterRoll = false;
+            }
 
             int newIndexShards = request.paramAsInt("newIndexShards", 2);
             int newIndexReplicas = request.paramAsInt("newIndexReplicas", 1);
@@ -80,10 +88,11 @@ public class RollAction extends BaseRestHandler {
             if (request.hasContent())
                 req = new CreateIndexRequest("").source(request.contentAsString());
             else
-                req = new CreateIndexRequest("").settings(toSettings(createIndexSettings(newIndexShards, newIndexReplicas, newIndexRefresh).string()));
+                req = new CreateIndexRequest("").settings(toSettings(createIndexSettings(
+                        newIndexShards, newIndexReplicas, newIndexRefresh).string()));
 
-            Map<String, Object> map = rollIndex(indexName, rollIndices, searchIndices,
-                    deleteAfterRoll, req);
+            Map<String, Object> map = rollIndex(indexPrefix, rollIndices, searchIndices,
+                    deleteAfterRoll, closeAfterRoll, req);
 
             builder.startObject();
             for (Entry<String, Object> e : map.entrySet()) {
@@ -104,9 +113,9 @@ public class RollAction extends BaseRestHandler {
         return DateTimeFormat.forPattern("yyyy-MM-dd-HH-mm");
     }
 
-    public Map<String, Object> rollIndex(String indexName, int maxRollIndices, int maxSearchIndices) {
+    public Map<String, Object> rollIndex(String indexPrefix, int maxRollIndices, int maxSearchIndices) {
         try {
-            return rollIndex(indexName, maxRollIndices, maxSearchIndices, false,
+            return rollIndex(indexPrefix, maxRollIndices, maxSearchIndices, false, true,
                     new CreateIndexRequest("").settings(toSettings(createIndexSettings(2, 1, "10s").string())));
         } catch (Exception ex) {
             throw new RuntimeException(ex);
@@ -118,9 +127,9 @@ public class RollAction extends BaseRestHandler {
     }
 
     // TODO make client calls async, see RestCreateIndexAction
-    public Map<String, Object> rollIndex(String indexName, int maxRollIndices, int maxSearchIndices,
-            boolean deleteAfterRoll, CreateIndexRequest request) {
-        String rollAlias = getRoll(indexName);
+    public Map<String, Object> rollIndex(String indexPrefix, int maxRollIndices, int maxSearchIndices,
+            boolean deleteAfterRoll, boolean closeAfterRoll, CreateIndexRequest request) {
+        String rollAlias = getRoll(indexPrefix);
         DateTimeFormatter formatter = createFormatter();
         if (maxRollIndices < 1 || maxSearchIndices < 1)
             throw new RuntimeException("remaining indices, search indices and feeding indices must be at least 1");
@@ -131,9 +140,9 @@ public class RollAction extends BaseRestHandler {
         Map<String, AliasMetaData> allRollingAliases = getAliases(rollAlias);
 
         // always create new index and append aliases
-        String searchAlias = getSearch(indexName);
-        String feedAlias = getFeed(indexName);
-        String newIndexName = indexName + "_" + formatter.print(System.currentTimeMillis());
+        String searchAlias = getSearch(indexPrefix);
+        String feedAlias = getFeed(indexPrefix);
+        String newIndexName = indexPrefix + "_" + formatter.print(System.currentTimeMillis());
 
         client.admin().indices().create(request.index(newIndexName)).actionGet();
         addAlias(newIndexName, searchAlias);
@@ -182,8 +191,13 @@ public class RollAction extends BaseRestHandler {
                     } else {
                         removeAlias(currentIndexName, rollAlias);
                         removeAlias(currentIndexName, searchAlias);
-                        closeIndex(currentIndexName);
-                        closedIndices += currentIndexName + " ";
+
+                        if (closeAfterRoll) {
+                            closeIndex(currentIndexName);
+                            closedIndices += currentIndexName + " ";
+                        } else {
+                            addAlias(currentIndexName, indexPrefix + "_closed");
+                        }
                         removedAlias += currentIndexName + " ";
                         removedAlias += currentIndexName + " ";
                     }
