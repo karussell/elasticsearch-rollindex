@@ -189,6 +189,7 @@ public class RollAction extends BaseRestHandler {
                         deleteIndex(currentIndexName);
                         deletedIndices += currentIndexName + " ";
                     } else {
+                        removeAlias(currentIndexName, feedAlias);
                         removeAlias(currentIndexName, rollAlias);
                         removeAlias(currentIndexName, searchAlias);
 
