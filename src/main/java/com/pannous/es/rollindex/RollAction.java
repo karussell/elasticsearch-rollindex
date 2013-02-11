@@ -83,6 +83,7 @@ public class RollAction extends BaseRestHandler {
             int newIndexShards = request.paramAsInt("newIndexShards", 2);
             int newIndexReplicas = request.paramAsInt("newIndexReplicas", 1);
             String newIndexRefresh = request.param("newIndexRefresh", "10s");
+            String indexTimestampPattern = request.param("indexTimestampPattern");
 
             CreateIndexRequest req;
             if (request.hasContent())
@@ -92,7 +93,7 @@ public class RollAction extends BaseRestHandler {
                         newIndexShards, newIndexReplicas, newIndexRefresh).string()));
 
             Map<String, Object> map = rollIndex(indexPrefix, rollIndices, searchIndices,
-                    deleteAfterRoll, closeAfterRoll, req);
+                    deleteAfterRoll, closeAfterRoll, indexTimestampPattern, req);
 
             builder.startObject();
             for (Entry<String, Object> e : map.entrySet()) {
@@ -108,14 +109,22 @@ public class RollAction extends BaseRestHandler {
             }
         }
     }
-
+    
     public DateTimeFormatter createFormatter() {
-        return DateTimeFormat.forPattern("yyyy-MM-dd-HH-mm");
+        return createFormatter(null);
     }
 
+    public DateTimeFormatter createFormatter(String pattern) {
+        return DateTimeFormat.forPattern(pattern == null ? "yyyy-MM-dd-HH-mm" : pattern);
+    }
+    
     public Map<String, Object> rollIndex(String indexPrefix, int maxRollIndices, int maxSearchIndices) {
+        return rollIndex(indexPrefix, maxRollIndices, maxSearchIndices, null);
+    }
+
+    public Map<String, Object> rollIndex(String indexPrefix, int maxRollIndices, int maxSearchIndices, String indexTimestampPattern) {
         try {
-            return rollIndex(indexPrefix, maxRollIndices, maxSearchIndices, false, true,
+            return rollIndex(indexPrefix, maxRollIndices, maxSearchIndices, false, true, indexTimestampPattern,
                     new CreateIndexRequest("").settings(toSettings(createIndexSettings(2, 1, "10s").string())));
         } catch (Exception ex) {
             throw new RuntimeException(ex);
@@ -128,9 +137,9 @@ public class RollAction extends BaseRestHandler {
 
     // TODO make client calls async, see RestCreateIndexAction
     public Map<String, Object> rollIndex(String indexPrefix, int maxRollIndices, int maxSearchIndices,
-            boolean deleteAfterRoll, boolean closeAfterRoll, CreateIndexRequest request) {
+            boolean deleteAfterRoll, boolean closeAfterRoll, String indexTimestampPattern, CreateIndexRequest request) {
         String rollAlias = getRoll(indexPrefix);
-        DateTimeFormatter formatter = createFormatter();
+        DateTimeFormatter formatter = createFormatter(indexTimestampPattern);
         if (maxRollIndices < 1 || maxSearchIndices < 1)
             throw new RuntimeException("remaining indices, search indices and feeding indices must be at least 1");
         if (maxSearchIndices > maxRollIndices)
