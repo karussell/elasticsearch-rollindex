@@ -109,7 +109,7 @@ public class RollAction extends BaseRestHandler {
             }
         }
     }
-    
+
     public DateTimeFormatter createFormatter() {
         return createFormatter(null);
     }
@@ -117,12 +117,14 @@ public class RollAction extends BaseRestHandler {
     public DateTimeFormatter createFormatter(String pattern) {
         return DateTimeFormat.forPattern(pattern == null ? "yyyy-MM-dd-HH-mm" : pattern);
     }
-    
-    public Map<String, Object> rollIndex(String indexPrefix, int maxRollIndices, int maxSearchIndices) {
+
+    public Map<String, Object> rollIndex(String indexPrefix, int maxRollIndices,
+            int maxSearchIndices) {
         return rollIndex(indexPrefix, maxRollIndices, maxSearchIndices, null);
     }
 
-    public Map<String, Object> rollIndex(String indexPrefix, int maxRollIndices, int maxSearchIndices, String indexTimestampPattern) {
+    public Map<String, Object> rollIndex(String indexPrefix, int maxRollIndices,
+            int maxSearchIndices, String indexTimestampPattern) {
         try {
             return rollIndex(indexPrefix, maxRollIndices, maxSearchIndices, false, true, indexTimestampPattern,
                     new CreateIndexRequest("").settings(toSettings(createIndexSettings(2, 1, "10s").string())));
@@ -136,8 +138,9 @@ public class RollAction extends BaseRestHandler {
     }
 
     // TODO make client calls async, see RestCreateIndexAction
-    public Map<String, Object> rollIndex(String indexPrefix, int maxRollIndices, int maxSearchIndices,
-            boolean deleteAfterRoll, boolean closeAfterRoll, String indexTimestampPattern, CreateIndexRequest request) {
+    public Map<String, Object> rollIndex(String indexPrefix, int maxRollIndices,
+            int maxSearchIndices, boolean deleteAfterRoll, boolean closeAfterRoll,
+            String indexTimestampPattern, CreateIndexRequest request) {
         String rollAlias = getRoll(indexPrefix);
         DateTimeFormatter formatter = createFormatter(indexTimestampPattern);
         if (maxRollIndices < 1 || maxSearchIndices < 1)

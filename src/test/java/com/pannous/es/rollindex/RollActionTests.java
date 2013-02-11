@@ -42,48 +42,45 @@ public class RollActionTests extends AbstractNodesTests {
     @Test public void rollingIndex() throws Exception {
         deleteAll();
         Settings emptySettings = ImmutableSettings.settingsBuilder().build();
-        RollAction action = new RollAction(emptySettings, client, new RestController(emptySettings)) {
-            @Override public DateTimeFormatter createFormatter() {
-                // use millisecond change for test
-                return DateTimeFormat.forPattern("yyyy-MM-dd-HH-mm-ss-S");
-            }
-        };
+        RollAction action = new RollAction(emptySettings, client, new RestController(emptySettings));
+        // use millisecond in order to get different indices
+        String pattern = "yyyy-MM-dd-HH-mm-ss-S";
 
         String rollIndexTag = action.getRoll("tweets");
         String searchIndex = action.getSearch("tweets");
         String feedIndex = action.getFeed("tweets");
-        action.rollIndex("tweets", 4, 4);
+        action.rollIndex("tweets", 4, 4, pattern);
         assertThat(action.getAliases(rollIndexTag).size(), equalTo(1));
         assertThat(action.getAliases(searchIndex).size(), equalTo(1));
         assertThat(action.getAliases(feedIndex).size(), equalTo(1));
 
         // TODO sleep is necessary to ensure index name change        
         Thread.sleep(20);
-        action.rollIndex("tweets", 4, 4);
+        action.rollIndex("tweets", 4, 4, pattern);
         assertThat(action.getAliases(rollIndexTag).size(), equalTo(2));
         assertThat(action.getAliases(searchIndex).size(), equalTo(2));
         assertThat(action.getAliases(feedIndex).size(), equalTo(1));
 
         Thread.sleep(20);
-        action.rollIndex("tweets", 4, 4);
+        action.rollIndex("tweets", 4, 4, pattern);
         assertThat(action.getAliases(rollIndexTag).size(), equalTo(3));
         assertThat(action.getAliases(searchIndex).size(), equalTo(3));
         assertThat(action.getAliases(feedIndex).size(), equalTo(1));
 
         Thread.sleep(20);
-        action.rollIndex("tweets", 4, 4);
+        action.rollIndex("tweets", 4, 4, pattern);
         assertThat(action.getAliases(rollIndexTag).size(), equalTo(4));
         assertThat(action.getAliases(searchIndex).size(), equalTo(4));
         assertThat(action.getAliases(feedIndex).size(), equalTo(1));
 
         Thread.sleep(20);
-        action.rollIndex("tweets", 4, 4);
+        action.rollIndex("tweets", 4, 4, pattern);
         assertThat(action.getAliases(rollIndexTag).size(), equalTo(4));
         assertThat(action.getAliases(searchIndex).size(), equalTo(4));
         assertThat(action.getAliases(feedIndex).size(), equalTo(1));
 
         Thread.sleep(20);
-        action.rollIndex("tweets", 4, 3);
+        action.rollIndex("tweets", 4, 3, pattern);
         assertThat(action.getAliases(rollIndexTag).size(), equalTo(4));
         assertThat(action.getAliases(searchIndex).size(), equalTo(3));
         assertThat(action.getAliases(feedIndex).size(), equalTo(1));
@@ -92,23 +89,19 @@ public class RollActionTests extends AbstractNodesTests {
     @Test public void rollingIndex2() throws Exception {
         deleteAll();
         Settings emptySettings = ImmutableSettings.settingsBuilder().build();
-        RollAction action = new RollAction(emptySettings, client, new RestController(emptySettings)) {
-            @Override public DateTimeFormatter createFormatter() {
-                // use millisecond change for test
-                return DateTimeFormat.forPattern("yyyy-MM-dd-HH-mm-ss-S");
-            }
-        };
+        RollAction action = new RollAction(emptySettings, client, new RestController(emptySettings));
+        String pattern = "yyyy-MM-dd-HH-mm-ss-S";
 
-        Map<String, Object> result = action.rollIndex("tweets", 2, 1);
+        Map<String, Object> result = action.rollIndex("tweets", 2, 1, pattern);
         String newIndex = result.get("created").toString();
         assertThat(((String) result.get("deleted")), isEmptyString());
 
         Thread.sleep(20);
-        result = action.rollIndex("tweets", 2, 1);
+        result = action.rollIndex("tweets", 2, 1, pattern);
         assertThat(((String) result.get("deleted")), isEmptyString());
 
         Thread.sleep(20);
-        result = action.rollIndex("tweets", 2, 1);
+        result = action.rollIndex("tweets", 2, 1, pattern);
         assertThat(((String) result.get("deleted")), isEmptyString());
         assertThat(((String) result.get("closed")), equalTo(newIndex));
     }
@@ -128,7 +121,7 @@ public class RollActionTests extends AbstractNodesTests {
         action.addAlias("whateverindex-1", action.getRoll("tweets"));
 
         Map<String, Object> res = action.rollIndex("tweets", 2, 1);
-                
+
         assertThat(action.getAliases(action.getRoll("tweets")).size(), equalTo(2));
         assertThat(action.getAliases(action.getSearch("tweets")).size(), equalTo(1));
         assertThat(action.getAliases(action.getFeed("tweets")).size(), equalTo(1));
