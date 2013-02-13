@@ -4,13 +4,7 @@
 
 # Install
 
-> mvn -DskipTests clean package
-
-> sudo $ES_HOME/bin/plugin install karussell/elasticsearch-rollindex
-
-> // or the local one: sudo $ES_HOME/bin/plugin -url ./target -install rollindex
-
-> sudo service elasticsearch restart
+> ./reinstall.sh
 
 you should see 'loaded [rollindex], sites []' in the logs
 
