@@ -87,7 +87,7 @@ public class RollAction extends BaseRestHandler {
 
             CreateIndexRequest req;
             if (request.hasContent())
-                req = new CreateIndexRequest("").source(request.content().toUtf8());
+                req = new CreateIndexRequest("").source(request.contentAsString());
             else
                 req = new CreateIndexRequest("").settings(toSettings(createIndexSettings(
                         newIndexShards, newIndexReplicas, newIndexRefresh).string()));
