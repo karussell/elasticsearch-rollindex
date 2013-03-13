@@ -57,7 +57,7 @@ public class RollAction extends BaseRestHandler {
     }
 
     @Override public void handleRequest(RestRequest request, RestChannel channel) {
-        logger.info("RollAction.handleRequest [{}]", request.toString());
+        logger.info("RollAction.handleRequest [{}]", request.params());
         try {
             XContentBuilder builder = restContentBuilder(request);
             String indexPrefix = request.param("indexPrefix", "");
