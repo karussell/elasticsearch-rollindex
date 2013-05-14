@@ -273,7 +273,7 @@ public class RollAction extends BaseRestHandler {
     public void moveAlias(String oldIndexName, String newIndexName, String alias) {
         IndicesAliasesResponse r = client.admin().indices().aliases(new IndicesAliasesRequest().addAlias(newIndexName, alias).
                 removeAlias(oldIndexName, alias)).actionGet();
-        logger.info("({}) moved {} from {} to {} ", r.acknowledged(), alias, oldIndexName, newIndexName);
+        logger.info("({}) moved {} from {} to {} ", r.isAcknowledged(), alias, oldIndexName, newIndexName);
     }
 
     public Map<String, AliasMetaData> getAliases(String alias) {
