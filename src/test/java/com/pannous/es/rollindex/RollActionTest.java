@@ -15,6 +15,7 @@ import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
+import org.testng.annotations.BeforeMethod;
 
 public class RollActionTest extends AbstractNodesTests {
 
@@ -34,13 +35,12 @@ public class RollActionTest extends AbstractNodesTests {
         return client("node1");
     }
 
-    public void deleteAll() {
-        // TODO is client null in @BeforeTest?
+    @BeforeMethod
+    public void deleteAll() {        
         client.admin().indices().delete(new DeleteIndexRequest()).actionGet();
     }
 
     @Test public void rollingIndex() throws Exception {
-        deleteAll();
         Settings emptySettings = ImmutableSettings.settingsBuilder().build();
         RollAction action = new RollAction(emptySettings, client, new RestController(emptySettings));
         // use millisecond in order to get different indices
@@ -86,8 +86,7 @@ public class RollActionTest extends AbstractNodesTests {
         assertThat(action.getAliases(feedIndex).size(), equalTo(1));
     }
 
-    @Test public void rollingIndex2() throws Exception {
-        deleteAll();
+    @Test public void rollingIndex2() throws Exception {        
         Settings emptySettings = ImmutableSettings.settingsBuilder().build();
         RollAction action = new RollAction(emptySettings, client, new RestController(emptySettings));
         String pattern = "yyyy-MM-dd-HH-mm-ss-S";
@@ -96,18 +95,17 @@ public class RollActionTest extends AbstractNodesTests {
         String newIndex = result.get("created").toString();
         assertThat(((String) result.get("deleted")), isEmptyString());
 
-        Thread.sleep(20);
+        Thread.sleep(40);
         result = action.rollIndex("tweets", 2, 1, pattern);
         assertThat(((String) result.get("deleted")), isEmptyString());
 
-        Thread.sleep(20);
+        Thread.sleep(40);
         result = action.rollIndex("tweets", 2, 1, pattern);
         assertThat(((String) result.get("deleted")), isEmptyString());
         assertThat(((String) result.get("closed")), equalTo(newIndex));
     }
 
-    @Test public void incompatibleDateFormatShouldComeLast() throws Exception {
-        deleteAll();
+    @Test public void incompatibleDateFormatShouldComeLast() throws Exception {        
         Settings emptySettings = ImmutableSettings.settingsBuilder().build();
         RollAction action = new RollAction(emptySettings, client, new RestController(emptySettings)) {
             @Override public DateTimeFormatter createFormatter() {
