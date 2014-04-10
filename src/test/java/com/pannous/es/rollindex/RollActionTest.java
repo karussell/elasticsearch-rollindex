@@ -1,6 +1,12 @@
 package com.pannous.es.rollindex;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.isEmptyString;
+
 import java.util.Map;
+
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.client.Client;
@@ -11,11 +17,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Test;
-
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.*;
 import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.Test;
 
 public class RollActionTest extends AbstractNodesTests {
 
@@ -36,8 +39,8 @@ public class RollActionTest extends AbstractNodesTests {
     }
 
     @BeforeMethod
-    public void deleteAll() {        
-        client.admin().indices().delete(new DeleteIndexRequest()).actionGet();
+    public void deleteAll() {
+        client.admin().indices().delete(new DeleteIndexRequest("_all")).actionGet();
     }
 
     @Test public void rollingIndex() throws Exception {
@@ -54,7 +57,7 @@ public class RollActionTest extends AbstractNodesTests {
         assertThat(action.getAliases(searchIndex).size(), equalTo(1));
         assertThat(action.getAliases(feedIndex).size(), equalTo(1));
 
-        // TODO sleep is necessary to ensure index name change        
+        // TODO sleep is necessary to ensure index name change
         Thread.sleep(20);
         action.rollIndex("tweets", 4, 4, pattern);
         assertThat(action.getAliases(rollIndexTag).size(), equalTo(2));
@@ -86,7 +89,7 @@ public class RollActionTest extends AbstractNodesTests {
         assertThat(action.getAliases(feedIndex).size(), equalTo(1));
     }
 
-    @Test public void rollingIndex2() throws Exception {        
+    @Test public void rollingIndex2() throws Exception {
         Settings emptySettings = ImmutableSettings.settingsBuilder().build();
         RollAction action = new RollAction(emptySettings, client, new RestController(emptySettings));
         String pattern = "yyyy-MM-dd-HH-mm-ss-S";
@@ -105,7 +108,7 @@ public class RollActionTest extends AbstractNodesTests {
         assertThat(((String) result.get("closed")), equalTo(newIndex));
     }
 
-    @Test public void incompatibleDateFormatShouldComeLast() throws Exception {        
+    @Test public void incompatibleDateFormatShouldComeLast() throws Exception {
         Settings emptySettings = ImmutableSettings.settingsBuilder().build();
         RollAction action = new RollAction(emptySettings, client, new RestController(emptySettings)) {
             @Override public DateTimeFormatter createFormatter() {
