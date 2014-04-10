@@ -1,23 +1,31 @@
 package com.pannous.es.rollindex;
 
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
+import static org.elasticsearch.rest.RestStatus.OK;
+import static org.elasticsearch.rest.action.support.RestXContentBuilder.restContentBuilder;
+
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Set;
 import java.util.TreeMap;
+
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.format.DateTimeFormat;
 import org.elasticsearch.common.joda.time.format.DateTimeFormatter;
@@ -31,9 +39,6 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.XContentRestResponse;
 import org.elasticsearch.rest.XContentThrowableRestResponse;
-import static org.elasticsearch.rest.RestRequest.Method.*;
-import static org.elasticsearch.rest.RestStatus.*;
-import static org.elasticsearch.rest.action.support.RestXContentBuilder.*;
 
 /**
  * @see issue 1500 https://github.com/elasticsearch/elasticsearch/issues/1500
@@ -43,10 +48,10 @@ import static org.elasticsearch.rest.action.support.RestXContentBuilder.*;
  */
 public class RollAction extends BaseRestHandler {
 
-    private String feedEnd = "feed";
-    private String searchEnd = "search";
+    private final String feedEnd = "feed";
+    private final String searchEnd = "search";
     // helper alias to fetch all indices which are available to roll
-    private String rollEnd = "roll";
+    private final String rollEnd = "roll";
 
     @Inject public RollAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
@@ -149,16 +154,16 @@ public class RollAction extends BaseRestHandler {
             throw new RuntimeException("rollIndices must be higher or equal to searchIndices");
 
         // get old aliases
-        Map<String, AliasMetaData> allRollingAliases = getAliases(rollAlias);
+        ImmutableOpenMap<String, AliasMetaData> allRollingAliases = getAliases(rollAlias);
 
         // always create new index and append aliases
         String searchAlias = getSearch(indexPrefix);
         String feedAlias = getFeed(indexPrefix);
         String newIndexName = indexPrefix + "_" + formatter.print(System.currentTimeMillis());
-
+        request.alias(new Alias(searchAlias));
+        request.alias(new Alias(rollAlias));
+        
         client.admin().indices().create(request.index(newIndexName)).actionGet();
-        addAlias(newIndexName, searchAlias);
-        addAlias(newIndexName, rollAlias);
 
         String deletedIndices = "";
         String removedAlias = "";
@@ -170,7 +175,7 @@ public class RollAction extends BaseRestHandler {
             // latest indices comes first
             TreeMap<Long, String> sortedIndices = new TreeMap<Long, String>(reverseSorter);
             // Map<String, String> indexToConcrete = new HashMap<String, String>();
-            String[] concreteIndices = getConcreteIndices(allRollingAliases.keySet());
+            String[] concreteIndices = getConcreteIndices(allRollingAliases.keys().toArray(String.class));
             Arrays.sort(concreteIndices);
             logger.info("aliases:{}, indices:{}", allRollingAliases, Arrays.toString(concreteIndices));
             // if we cannot parse the time from the index name we just treat them as old indices of time == 0
@@ -263,25 +268,27 @@ public class RollAction extends BaseRestHandler {
     }
 
     public void addAlias(String indexName, String alias) {
-        client.admin().indices().aliases(new IndicesAliasesRequest().addAlias(indexName, alias)).actionGet();
+        client.admin().indices().aliases(new IndicesAliasesRequest().addAlias(alias, indexName)).actionGet();
     }
 
     public void removeAlias(String indexName, String alias) {
-        client.admin().indices().aliases(new IndicesAliasesRequest().removeAlias(indexName, alias)).actionGet();
+    	boolean exists = client.admin().indices().aliasesExist(new GetAliasesRequest().aliases(alias).indices(indexName)).actionGet().exists();
+    	if(exists) {
+    		client.admin().indices().aliases(new IndicesAliasesRequest().removeAlias(indexName, alias)).actionGet();
+    	}
     }
 
     public void moveAlias(String oldIndexName, String newIndexName, String alias) {
-        IndicesAliasesResponse r = client.admin().indices().aliases(new IndicesAliasesRequest().addAlias(newIndexName, alias).
+        IndicesAliasesResponse r = client.admin().indices().aliases(new IndicesAliasesRequest().addAlias(alias, newIndexName).
                 removeAlias(oldIndexName, alias)).actionGet();
         logger.info("({}) moved {} from {} to {} ", r.isAcknowledged(), alias, oldIndexName, newIndexName);
     }
 
-    public Map<String, AliasMetaData> getAliases(String alias) {
-        Map<String, AliasMetaData> md = client.admin().cluster().state(new ClusterStateRequest()).
+    public ImmutableOpenMap<String, AliasMetaData> getAliases(String alias) {
+        ImmutableOpenMap<String, AliasMetaData> md = client.admin().cluster().state(new ClusterStateRequest()).
                 actionGet().getState().getMetaData().aliases().get(alias);
         if (md == null)
-            return Collections.emptyMap();
-
+            return ImmutableOpenMap.of();
         return md;
     }
     private static Comparator<Long> reverseSorter = new Comparator<Long>() {
@@ -291,9 +298,9 @@ public class RollAction extends BaseRestHandler {
         }
     };
 
-    public String[] getConcreteIndices(Set<String> set) {
+    public String[] getConcreteIndices(String[] indices) {
         return client.admin().cluster().state(new ClusterStateRequest()).actionGet().getState().
-                getMetaData().concreteIndices(set.toArray(new String[set.size()]));
+                getMetaData().concreteIndices(indices);
     }
 
     String getRoll(String indexName) {
